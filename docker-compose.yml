@@ -1,0 +1,69 @@
+version: '3.4'
+
+services:
+  filebeat-setup:
+    image: docker.elastic.co/beats/filebeat:7.0.1
+    command: setup -E setup.kibana.host=kibana:5601 -E output.elasticsearch.hosts=["elasticsearch:9200"]   
+    deploy:
+      restart_policy: 
+        condition: on-failure
+    restart: on-failure
+    networks:
+      - elk
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:7.0.1
+    command: filebeat -e -strict.perms=false -E output.elasticsearch.hosts=["elasticsearch:9200"]
+    user: root
+    volumes:
+      - ./filebeat/filebeat.docker.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - elk
+
+  metricbeat-setup:
+    image: docker.elastic.co/beats/metricbeat:7.0.1
+    command: setup -E setup.kibana.host=kibana:5601 -E output.elasticsearch.hosts=["elasticsearch:9200"]
+    deploy:
+      restart_policy:
+        condition: on-failure
+    restart: on-failure
+    networks:
+      - elk
+
+  metricbeat:
+    image: docker.elastic.co/beats/metricbeat:7.0.1
+    command: metricbeat -e -E output.elasticsearch.hosts=["elasticsearch:9200"]
+    user: root
+    volumes:
+      - ./metricbeat/metricbeat.docker.yml:/usr/share/metricbeat/metricbeat.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+      - /proc:/hostfs/proc:ro
+      - /:/hostfs:ro
+    
+  elasticsearch:
+    image: elasticsearch:7.0.1    
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - ES_JAVA_OPTS=-Xmx256m -Xms256m
+      - discovery.type=single-node
+    networks:
+      - elk
+
+  kibana:
+    image: kibana:7.0.1    
+    ports:
+      - "5601:5601"
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+
+networks:
+
+  elk:
+    driver: bridge
